@@ -1,0 +1,32 @@
+name: Sync fork with upstream
+
+# Does the same thing as the "Sync fork" button, once a day.
+on:
+  schedule:
+    - cron: "23 19 * * *" # 03:23 Asia/Shanghai
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-fork
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # Only run in forks, never in the upstream repository itself.
+    if: github.event.repository.fork
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge upstream into ${{ github.event.repository.default_branch }}
+        env:
+          # Optional: add a personal access token (repo + workflow scopes) as the
+          # SYNC_TOKEN secret. The built-in token cannot sync commits that touch
+          # .github/workflows/, and pushes made with it do not trigger other workflows.
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
+        run: |
+          gh api --method POST \
+            "repos/${{ github.repository }}/merge-upstream" \
+            -f branch="${{ github.event.repository.default_branch }}" \
+            --jq '"\(.message) (\(.merge_type // "none"))"'
